@@ -1,5 +1,6 @@
 import { createStep, createWorkflow } from "@mastra/core/workflows";
 import { z } from "zod";
+import { forecastTool } from "../tools/forecast-tool";
 
 const forecastSchema = z.object({
   date: z.string(),
@@ -10,28 +11,6 @@ const forecastSchema = z.object({
   location: z.string(),
 });
 
-function getWeatherCondition(code: number): string {
-  const conditions: Record<number, string> = {
-    0: "Clear sky",
-    1: "Mainly clear",
-    2: "Partly cloudy",
-    3: "Overcast",
-    45: "Foggy",
-    48: "Depositing rime fog",
-    51: "Light drizzle",
-    53: "Moderate drizzle",
-    55: "Dense drizzle",
-    61: "Slight rain",
-    63: "Moderate rain",
-    65: "Heavy rain",
-    71: "Slight snow fall",
-    73: "Moderate snow fall",
-    75: "Heavy snow fall",
-    95: "Thunderstorm",
-  };
-  return conditions[code] || "Unknown";
-}
-
 const fetchWeather = createStep({
   id: "fetch-weather",
   description: "Fetches weather forecast for a given city",
@@ -39,69 +18,74 @@ const fetchWeather = createStep({
     city: z.string().describe("The city to get the weather for"),
   }),
   outputSchema: forecastSchema,
-  execute: async ({ inputData }) => {
+  execute: async ({ inputData, mastra, runId }) => {
+    const logger = mastra?.getLogger();
+    const startTime = Date.now();
+
+    logger?.info("[fetchWeather] Starting weather fetch using forecast tool", {
+      city: inputData?.city,
+      runId,
+      step: "fetch-weather",
+    });
+
     if (!inputData) {
+      logger?.error("[fetchWeather] Input data not found", { runId });
       throw new Error("Input data not found");
     }
 
     try {
-      const geocodingUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(inputData.city)}&count=1`;
-      const geocodingResponse = await fetch(geocodingUrl);
+      logger?.info("[fetchWeather] Calling forecast tool", {
+        city: inputData.city,
+        runId,
+      });
 
-      if (!geocodingResponse.ok) {
-        throw new Error(
-          `Geocoding API error: ${geocodingResponse.status} ${geocodingResponse.statusText}`
+      // Create a promise that rejects after timeout
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(
+          () => reject(new Error("Forecast tool timed out after 15 seconds")),
+          15000
         );
-      }
+      });
 
-      const geocodingData = (await geocodingResponse.json()) as {
-        results: { latitude: number; longitude: number; name: string }[];
-      };
+      // Race between tool execution and timeout
+      const forecast = (await Promise.race([
+        forecastTool.execute({
+          context: { location: inputData.city },
+          mastra,
+        }),
+        timeoutPromise,
+      ])) as any;
 
-      if (!geocodingData.results?.[0]) {
-        throw new Error(`Location '${inputData.city}' not found`);
-      }
-
-      const { latitude, longitude, name } = geocodingData.results[0];
-
-      const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=precipitation,weathercode&timezone=auto&hourly=precipitation_probability,temperature_2m`;
-      const response = await fetch(weatherUrl);
-
-      if (!response.ok) {
-        throw new Error(
-          `Weather API error: ${response.status} ${response.statusText}`
-        );
-      }
-
-      const data = (await response.json()) as {
-        current: {
-          time: string;
-          precipitation: number;
-          weathercode: number;
-        };
-        hourly: {
-          precipitation_probability: number[];
-          temperature_2m: number[];
-        };
-      };
-
-      const forecast = {
-        date: new Date().toISOString(),
-        maxTemp: Math.max(...data.hourly.temperature_2m),
-        minTemp: Math.min(...data.hourly.temperature_2m),
-        condition: getWeatherCondition(data.current.weathercode),
-        precipitationChance: data.hourly.precipitation_probability.reduce(
-          (acc, curr) => Math.max(acc, curr),
-          0
-        ),
-        location: name,
-      };
+      const totalDuration = Date.now() - startTime;
+      logger?.info("[fetchWeather] Weather fetch completed successfully", {
+        location: forecast.location,
+        forecast,
+        totalDuration: `${totalDuration}ms`,
+        runId,
+      });
 
       return forecast;
     } catch (error) {
+      const totalDuration = Date.now() - startTime;
+
       if (error instanceof Error) {
+        logger?.error("[fetchWeather] Failed to fetch weather data", {
+          error: error.message,
+          stack: error.stack,
+          city: inputData.city,
+          totalDuration: `${totalDuration}ms`,
+          runId,
+        });
+
         throw new Error(`Failed to fetch weather data: ${error.message}`);
       }
+
+      logger?.error("[fetchWeather] Unknown error occurred", {
+        error,
+        city: inputData.city,
+        totalDuration: `${totalDuration}ms`,
+        runId,
+      });
       throw error;
     }
   },
@@ -114,19 +98,40 @@ const planActivities = createStep({
   outputSchema: z.object({
     activities: z.string(),
   }),
-  execute: async ({ inputData, mastra }) => {
+  execute: async ({ inputData, mastra, runId }) => {
+    const logger = mastra?.getLogger();
+    const startTime = Date.now();
     const forecast = inputData;
 
+    logger?.info("[planActivities] Starting activity planning", {
+      location: forecast?.location,
+      forecast,
+      runId,
+      step: "plan-activities",
+    });
+
     if (!forecast) {
+      logger?.error("[planActivities] Forecast data not found", { runId });
       throw new Error("Forecast data not found");
     }
 
     const agent = mastra?.getAgent("weatherAgent");
     if (!agent) {
+      logger?.error("[planActivities] Weather agent not found", {
+        agentName: "weatherAgent",
+        runId,
+      });
       throw new Error("Weather agent not found");
     }
 
-    const prompt = `Create an activity plan for ${forecast.location} based on this weather:
+    logger?.info("[planActivities] Weather agent retrieved", {
+      agentName: "weatherAgent",
+      runId,
+    });
+
+    const prompt = `[WORKFLOW CONTEXT - DO NOT USE TOOLS OR WORKFLOWS]
+
+Create an activity plan for ${forecast.location} based on this weather:
 Temperature: ${forecast.minTemp}°C to ${forecast.maxTemp}°C
 Conditions: ${forecast.condition}
 Precipitation chance: ${forecast.precipitationChance}%
@@ -162,17 +167,84 @@ Ao ar livre:
 
 Keep it brief but helpful. Use specific local venues/locations for ${forecast.location}.`;
 
-    // Use generate instead of stream for workflow to avoid loops
-    const response = await agent.generate([
-      {
-        role: "user",
-        content: prompt,
-      },
-    ]);
+    try {
+      logger?.info("[planActivities] Calling AI agent to generate activities", {
+        location: forecast.location,
+        promptLength: prompt.length,
+        runId,
+      });
 
-    return {
-      activities: response.text,
-    };
+      // Use generate instead of stream for workflow to avoid loops
+      const agentStartTime = Date.now();
+
+      // Create a promise that rejects after timeout
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(
+          () =>
+            reject(new Error("Agent generation timed out after 30 seconds")),
+          30000
+        );
+      });
+
+      // Race between agent generation and timeout
+      const response = (await Promise.race([
+        agent.generate([
+          {
+            role: "system",
+            content:
+              "IMPORTANT: You are being called from within a workflow. DO NOT use any workflows or tools. Just provide the formatted activity suggestions directly.",
+          },
+          {
+            role: "user",
+            content: prompt,
+          },
+        ]),
+        timeoutPromise,
+      ])) as any;
+
+      const agentDuration = Date.now() - agentStartTime;
+      logger?.info("[planActivities] AI agent response received", {
+        responseLength: response.text?.length || 0,
+        duration: `${agentDuration}ms`,
+        runId,
+      });
+
+      const totalDuration = Date.now() - startTime;
+      logger?.info(
+        "[planActivities] Activity planning completed successfully",
+        {
+          location: forecast.location,
+          activitiesLength: response.text?.length || 0,
+          totalDuration: `${totalDuration}ms`,
+          runId,
+        }
+      );
+
+      return {
+        activities: response.text,
+      };
+    } catch (error) {
+      const totalDuration = Date.now() - startTime;
+
+      if (error instanceof Error) {
+        logger?.error("[planActivities] Failed to generate activities", {
+          error: error.message,
+          stack: error.stack,
+          location: forecast.location,
+          totalDuration: `${totalDuration}ms`,
+          runId,
+        });
+        throw new Error(`Failed to generate activities: ${error.message}`);
+      }
+
+      logger?.error("[planActivities] Unknown error occurred", {
+        error,
+        location: forecast.location,
+        totalDuration: `${totalDuration}ms`,
+        runId,
+      });
+      throw error;
+    }
   },
 });
 
@@ -184,6 +256,10 @@ const weatherWorkflow = createWorkflow({
   outputSchema: z.object({
     activities: z.string(),
   }),
+  retryConfig: {
+    attempts: 3,
+    delay: 2000,
+  },
 })
   .then(fetchWeather)
   .then(planActivities);

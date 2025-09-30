@@ -2,6 +2,7 @@ import { openai } from "@ai-sdk/openai";
 import { Agent } from "@mastra/core/agent";
 import { LibSQLStore } from "@mastra/libsql";
 import { Memory } from "@mastra/memory";
+import { forecastTool } from "../tools/forecast-tool";
 import { weatherTool } from "../tools/weather-tool";
 import { weatherWorkflow } from "../workflows/weather-workflow";
 
@@ -26,10 +27,14 @@ Use weatherWorkflow when users ask about:
 - Planning their day/week/trip
 - Suggestions for outdoor/indoor activities
 
-Use weatherTool ONLY for:
+Use weatherTool for:
+- Current weather conditions (temperature, humidity, wind)
 - Quick weather checks without activity suggestions
-- Simple questions about temperature, conditions, humidity, wind
-- Users explicitly asking only about weather conditions
+
+Use forecastTool for:
+- Weather forecasts with min/max temperatures
+- Precipitation chances
+- When users need forecast data but not activity suggestions
 
 **Activity Planning Workflow:**
 - When users request activities, ALWAYS use the weatherWorkflow
@@ -50,7 +55,7 @@ Use weatherTool ONLY for:
 - For weather checks, provide clear, quick information
 `,
   model: openai("gpt-4o-mini"),
-  tools: { weatherTool },
+  tools: { weatherTool, forecastTool },
   workflows: { weatherWorkflow },
   memory: new Memory({
     storage: new LibSQLStore({
