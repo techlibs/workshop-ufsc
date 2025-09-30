@@ -1,0 +1,28 @@
+{
+  "name": "workshop-ufsc",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Modular TypeScript client for Cambrian API",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "dev": "tsx watch src/examples/solana/latest-block.ts",
+    "example:solana:block": "tsx src/examples/solana/latest-block.ts",
+    "example:solana:price": "tsx src/examples/solana/price-current.ts",
+    "example:evm:chains": "tsx src/examples/evm/evm-chains.ts",
+    "example:evm:pools": "tsx src/examples/evm/uniswap-v3-pools.ts",
+    "example:evm:pool": "tsx src/examples/evm/uniswap-v3-pool-detail.ts"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.8.6",
+    "tsx": "^4.16.2",
+    "typescript": "^5.6.3"
+  }
+}
