@@ -1,5 +1,20 @@
 # Cambrian API TypeScript Client
 
+A clean, modular TypeScript client for interacting with the [Cambrian API](https://docs.cambrian.org) – a powerful API delivering blockchain and DeFi data across Solana, Base, and other EVM-compatible networks.
+
+This client aims to simplify integration with Cambrian’s data services in modern TypeScript/JavaScript applications.
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js 18+
+- pnpm (recommended) or npm
+- A Cambrian API key  
+  → Follow the steps in the official [Getting Started tutorial](https://docs.cambrian.org/guides/getting-started-tutorial) to obtain your key.
+
 A clean, modular TypeScript application for interacting with the [Cambrian API](https://docs.cambrian.org) - a comprehensive API for blockchain and DeFi data across Solana, Base, and other EVM networks.
 
 ## 🚀 Quick Start
