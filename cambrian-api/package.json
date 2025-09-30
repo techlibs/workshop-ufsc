@@ -11,7 +11,11 @@
     "example:solana:price": "tsx src/examples/solana/price-current.ts",
     "example:evm:chains": "tsx src/examples/evm/evm-chains.ts",
     "example:evm:pools": "tsx src/examples/evm/uniswap-v3-pools.ts",
-    "example:evm:pool": "tsx src/examples/evm/uniswap-v3-pool-detail.ts"
+    "example:evm:pool": "tsx src/examples/evm/uniswap-v3-pool-detail.ts",
+    "example:evm:dexes": "tsx src/examples/evm/evm-dexes.ts",
+    "example:evm:price-current": "tsx src/examples/evm/evm-price-current.ts",
+    "example:evm:price-hour": "tsx src/examples/evm/evm-price-hour.ts",
+    "example:evm:tokens": "tsx src/examples/evm/evm-tokens.ts"
   },
   "engines": {
     "node": ">=18.0.0"
