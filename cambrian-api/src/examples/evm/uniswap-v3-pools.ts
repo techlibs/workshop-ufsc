@@ -1,31 +1,28 @@
 /**
  * Example: Get Uniswap V3 Pools
  *
- * Run with: pnpm tsx src/examples/evm/uniswap-v3-pools.ts [chain] [limit]
+ * Run with: pnpm tsx src/examples/evm/uniswap-v3-pools.ts [chain_id]
  *
  * Examples:
- *   pnpm tsx src/examples/evm/uniswap-v3-pools.ts
- *   pnpm tsx src/examples/evm/uniswap-v3-pools.ts base 10
+ *   pnpm tsx src/examples/evm/uniswap-v3-pools.ts       # Default: Base (8453)
+ *   pnpm tsx src/examples/evm/uniswap-v3-pools.ts 8453  # Base
+ *   pnpm tsx src/examples/evm/uniswap-v3-pools.ts 1     # Ethereum
  */
 
 import { createClient } from "../../client/cambrian-client.js";
 import { getApiKey, getBaseUrl } from "../../utils/env.js";
 
 async function main() {
-  const chain = process.argv[2];
-  const limit = process.argv[3] ? parseInt(process.argv[3], 10) : 10;
+  const chainId = process.argv[2] ? parseInt(process.argv[2], 10) : 8453; // Default to Base
 
   console.log("🔍 Fetching Uniswap V3 pools...");
-  if (chain) console.log(`   Chain: ${chain}`);
-  console.log(`   Limit: ${limit}\n`);
+  console.log(`   Chain ID: ${chainId}\n`);
 
   const client = createClient(getApiKey(), getBaseUrl());
 
   try {
     const pools = await client.getUniswapV3Pools({
-      chain,
-      limit,
-      offset: 0,
+      chain_id: chainId,
     });
 
     if (!pools || pools.length === 0) {

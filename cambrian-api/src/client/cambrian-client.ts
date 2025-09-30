@@ -116,7 +116,7 @@ export class CambrianClient {
    */
   async getCurrentPrice(address: string) {
     return this.getObjects("/api/v1/solana/price-current", {
-      params: { address },
+      params: { token_address: address },
     });
   }
 
@@ -140,14 +140,15 @@ export class CambrianClient {
 
   /**
    * Get list of all Uniswap V3 pools
-   * @param chain - Chain name (e.g., 'base', 'ethereum')
+   * @param chain_id - Chain ID (e.g., 8453 for Base, 1 for Ethereum)
    * @param limit - Number of results to return
    * @param offset - Pagination offset
    */
   async getUniswapV3Pools(params?: {
-    chain?: string;
-    limit?: number;
-    offset?: number;
+    chain_id?: number;
+    token_address?: string;
+    order_asc?: string;
+    order_desc?: string;
   }) {
     return this.getObjects("/api/v1/evm/uniswap/v3/pools", {
       params,
@@ -157,29 +158,29 @@ export class CambrianClient {
   /**
    * Get detailed info for a specific Uniswap V3 pool
    * @param address - Pool contract address
-   * @param chain - Chain name (e.g., 'base', 'ethereum')
+   * @param chain_id - Chain ID (e.g., 8453 for Base, 1 for Ethereum)
    */
-  async getUniswapV3Pool(address: string, chain?: string) {
+  async getUniswapV3Pool(address: string, chain_id?: number) {
     return this.getObjects("/api/v1/evm/uniswap/v3/pool", {
-      params: { address, chain },
+      params: { address, chain_id },
     });
   }
 
   /**
    * Get current price for an EVM token
    */
-  async getEvmPrice(address: string, chain: string) {
+  async getEvmPrice(address: string, chain_id: number) {
     return this.getObjects("/api/v1/evm/price-current", {
-      params: { address, chain },
+      params: { address, chain_id },
     });
   }
 
   /**
    * Get list of whitelisted tokens for an EVM chain
    */
-  async getEvmTokens(chain: string, limit?: number, offset?: number) {
+  async getEvmTokens(chain_id: number, limit?: number, offset?: number) {
     return this.getObjects("/api/v1/evm/tokens", {
-      params: { chain, limit, offset },
+      params: { chain_id, limit, offset },
     });
   }
 }
