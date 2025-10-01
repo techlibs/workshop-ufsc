@@ -1,14 +1,25 @@
 import { Mastra } from "@mastra/core/mastra";
 import { LibSQLStore } from "@mastra/libsql";
 import { PinoLogger } from "@mastra/loggers";
-import { inventoryAgent } from "./agents/inventory-agent";
-import { weatherAgent } from "./agents/weather-agent";
-import { defiAgent } from "./agents/defi-agents";
-import { weatherWorkflow } from "./workflows/weather-workflow";
+
+// Import from domain modules
+import { beachAgent } from "./domains/beach";
+import { defiAgent } from "./domains/defi";
+import { inventoryAgent } from "./domains/inventory";
+import { movieAgent } from "./domains/movie";
+import { studyAgent } from "./domains/study";
+import { weatherAgent, weatherWorkflow } from "./domains/weather";
 
 export const mastra = new Mastra({
   workflows: { weatherWorkflow },
-  agents: { weatherAgent, inventoryAgent, defiAgent },
+  agents: {
+    weatherAgent,
+    inventoryAgent,
+    defiAgent,
+    movieAgent,
+    beachAgent,
+    studyAgent,
+  },
   storage: new LibSQLStore({
     // stores telemetry, evals, ... into memory storage, if it needs to persist, change to file:../mastra.db
     url: ":memory:",

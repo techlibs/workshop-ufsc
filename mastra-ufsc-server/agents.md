@@ -1,274 +1,95 @@
-# Mastra UFSC Server - AI Agent Development Guide
+# Mastra UFSC Server – Agent Handbook
 
-This guide provides a concise overview of building AI agents with Mastra. For comprehensive documentation, see [docs/mastra.md](docs/mastra.md).
+This handbook captures how agents are organised and extended inside `mastra-ufsc-server`. For framework specifics, keep the Mastra reference in `docs/mastra.md` open while you work.
 
-## Project Structure
+## Repository Layout
 
-```
+```text
 src/mastra/
-├── agents/       # AI agent definitions
-├── tools/        # Reusable tools for agents
-├── utils/        # Utility functions
-├── workflows/    # Multi-step orchestrations
-└── index.ts      # Mastra configuration
+├── domains/             # Feature-specific agent domains (one folder per agent)
+│   ├── beach/           # Beach concierge agent (tools, data, agent, barrel)
+│   ├── defi/            # DeFi market intelligence agent
+│   ├── inventory/       # Shopping assistant agent with cart utilities
+│   ├── movie/           # Streaming recommendations agent
+│   ├── study/           # Blockchain & AI tutor agent
+│   └── weather/         # Weather + activity planning agent
+├── shared/              # Cross-domain utilities (API clients, env config, logging)
+├── index.ts             # Mastra root configuration (registers agents, workflows)
+└── workflows/           # Legacy orchestration helpers (new flows live in domains)
 ```
 
-## Core Concepts
+Each domain follows the same internal shape so changes remain predictable:
 
-### 1. Agents
-AI-powered assistants that use LLMs with tools and workflows to accomplish tasks. Agents maintain context through memory and can execute complex operations.
-
-**Key features:**
-- System instructions for behavior guidance
-- Tool and workflow integration
-- Memory persistence for conversation history
-- Multi-language support
-
-### 2. Tools
-Discrete, reusable functions that agents can call to interact with external systems or perform specific operations.
-
-**Tool anatomy:**
-- Input/output schemas (Zod validation)
-- Async execution function
-- Clear descriptions for LLM understanding
-
-### 3. Workflows
-Multi-step orchestrations that chain operations together with control flow, error handling, and data transformation.
-
-**Workflow features:**
-- Sequential and parallel execution
-- Conditional branching
-- Error recovery
-- State persistence
-
-## Building Your First Agent
-
-### Step 1: Create Tools
-
-Tools are the building blocks that give agents capabilities:
-
-```typescript
-// src/mastra/tools/weather-tool.ts
-import { createTool } from "@mastra/core/tools";
-import { z } from "zod";
-
-export const weatherTool = createTool({
-  id: "get-weather",
-  description: "Get current weather conditions", // LLM uses this to understand when to use the tool
-  inputSchema: z.object({
-    location: z.string().describe("City name"),
-  }),
-  outputSchema: z.object({
-    temperature: z.number(),
-    conditions: z.string(),
-  }),
-  execute: async ({ context }) => {
-    // Implementation
-    return { temperature: 25, conditions: "Sunny" };
-  },
-});
+```text
+<domain>/
+├── agent.ts             # Agent definition & instructions
+├── data/                # Static datasets (optional)
+├── services/            # External API integrations (optional)
+├── tools/               # createTool definitions exposed to the agent
+├── utils/               # Domain-only helpers
+├── workflow.ts          # Domain workflow (optional, commit() inside file)
+└── index.ts             # Barrel exports for Mastra registration
 ```
 
-**AI Best Practices for Tools:**
-- Write clear, specific descriptions that help the LLM understand tool purpose
-- Use descriptive field names in schemas
-- Include examples in descriptions when ambiguous
-- Handle errors gracefully with meaningful messages
+## Domain Reference
 
-### Step 2: Create Workflows
+| Domain | Purpose | Key Entry Points | Documentation |
+| --- | --- | --- | --- |
+| `weather/` | Weather checks & day planning | `agent.ts`, `workflow.ts` | `docs/agents/weather-agent.md` |
+| `beach/` | Floripa beach concierge | `agent.ts`, `tools/search-beaches-tool.ts` | `docs/agents/beach-agent.md` |
+| `movie/` | Mood + provider-based recommendations | `agent.ts`, `utils/mood-mapper.ts` | `docs/agents/movie-agent.md` |
+| `inventory/` | Conversational shopping & cart | `agent.ts`, `utils/cart-manager.ts` | `docs/agents/inventory-agent.md` |
+| `study/` | Blockchain & AI tutor | `agent.ts`, `tools/study-plan-generator-tool.ts` | `docs/agents/study-agent.md` |
+| `defi/` | DeFi protocol Q&A (alpha) | `agent.ts`, `tools/dexes-tool.ts` | `docs/architecture/project-overview.md` |
 
-Workflows orchestrate multiple steps for complex operations:
+## Shared Modules
 
-```typescript
-// src/mastra/workflows/weather-workflow.ts
-import { createStep, createWorkflow } from "@mastra/core/workflows";
-import { z } from "zod";
+- `shared/api/` – API client wrappers, caching, and retry policies.
+- `shared/config/env.ts` – Runtime configuration loader (also see `env.example`).
+- `types/` – Cross-domain TypeScript contracts.
+- `tests/` – E2E and integration suites organised by domain (`tests/e2e/<domain>`).
+- `examples/` – Minimal scripts demonstrating agent usage.
 
-// Define reusable steps
-const fetchWeather = createStep({
-  id: "fetch-weather",
-  description: "Fetches weather forecast",
-  inputSchema: z.object({
-    city: z.string(),
-  }),
-  outputSchema: z.object({
-    temperature: z.number(),
-    condition: z.string(),
-  }),
-  execute: async ({ inputData, mastra }) => {
-    const logger = mastra?.getLogger();
-    logger?.info("Fetching weather", { city: inputData.city });
-    
-    // Use tools or external APIs
-    return { temperature: 25, condition: "Sunny" };
-  },
-});
+Reuse helpers from `shared/` or create new ones when two or more domains need the same behaviour. Keep domain-specific logic inside the matching `domains/<name>` folder.
 
-// Chain steps into workflows
-export const weatherWorkflow = createWorkflow({
-  id: "weather-workflow",
-  inputSchema: z.object({
-    city: z.string(),
-  }),
-  outputSchema: z.object({
-    activities: z.string(),
-  }),
-})
-  .then(fetchWeather)
-  .then(planActivities);
+## Implementation Workflow
 
-weatherWorkflow.commit();
-```
+1. **Plan & Document** – Capture the intent in `docs/development/ai-notes/` (follow the 4-phase workflow outlined in `docs/development/plans/AI_WORKFLOW_SYSTEM.md`).
+2. **Add Tools First** – Define tool schemas and behaviour inside the domain’s `tools/` folder and export them through `index.ts`.
+3. **Wire the Agent** – Configure instructions, model, tools, workflows, memory, and optional processors in `agent.ts`.
+4. **Design the Workflow** – When orchestration is required, create a `workflow.ts` inside the domain:
+   - Use `createStep` for reusable units with clear input/output schemas (Zod) and retry/backoff policies when needed.
+   - Chain steps with `.then()`, `.parallel()`, `.branch()` to express the desired control flow.
+   - Pass domain tools or other agents using the provided `mastra` context—never call the parent agent from within the workflow unless you wrap it with explicit safeguards (see `docs/development/ai-notes/fixes/workflow-loop-prevention.md`).
+   - Commit the workflow with `.commit()` at the bottom of the file and export it through the domain barrel.
+5. **Register in Mastra** – Import new agents/workflows in `src/mastra/index.ts` so they are available to the runtime, tests, and dev playground.
+6. **Document & Test** – Update the relevant doc in `docs/agents/`, add usage examples, and extend E2E/integration tests under `tests/`.
 
-**Workflow Design Patterns:**
-- **Sequential Flow**: Chain steps with `.then()`
-- **Parallel Execution**: Use `.parallel()` for concurrent operations
-- **Conditional Logic**: Apply `.branch()` for decision trees
-- **Error Handling**: Implement retry logic and fallbacks
-- **State Management**: Use workflow context for data passing
+### Workflow Implementation Guide
 
-### Step 3: Define the Agent
+When authoring workflows, follow these AI-friendly instructions so Mastra can reason about tool orchestration reliably:
 
-Agents combine LLM intelligence with tools and workflows:
+- **Purpose** – Start by describing the workflow goal, required context, and expected outputs in plain language comments; this guides downstream agents.
+- **Step Construction** – Encapsulate external API calls and heavy logic inside steps. Keep side effects inside the `execute` function and return structured data only.
+- **Context Sharing** – Use the workflow context to pass data between steps; avoid global state or hidden mutations.
+- **Error Handling** – Configure `retryConfig` or explicit `try/catch` blocks so transient failures (network, rate limits) can be retried without breaking the run.
+- **Human-in-the-Loop** – Use `.waitForEvent()` or branching to request manual approval when a decision cannot be automated.
+- **Agent Calls from Workflows** – If a step invokes an agent, add a system instruction that forbids further tool/workflow calls and keeps the response focused (see the weather workflow for a reference pattern).
+- **Testing** – Create fixture-driven integration tests in `tests/integration/<domain>` exercising success, retry, and failure paths.
 
-```typescript
-// src/mastra/agents/weather-agent.ts
-import { openai } from "@ai-sdk/openai";
-import { Agent } from "@mastra/core/agent";
-import { Memory } from "@mastra/memory";
-import { LibSQLStore } from "@mastra/libsql";
+### Best Practices Summary
 
-export const weatherAgent = new Agent({
-  name: "Weather Agent",
-  instructions: `
-    You are a helpful weather assistant.
-    
-    **Tool Selection Guidelines:**
-    - Use weatherTool for current conditions
-    - Use weatherWorkflow for activity planning
-    - Always ask for location if not provided
-    
-    **Response Guidelines:**
-    - Be concise but informative
-    - Match the user's language
-    - Add helpful context when appropriate
-  `,
-  model: openai("gpt-4o-mini"),
-  tools: { weatherTool, forecastTool },
-  workflows: { weatherWorkflow },
-  memory: new Memory({
-    storage: new LibSQLStore({
-      url: "file:../mastra.db",
-    }),
-  }),
-});
-```
+- Use clear tool descriptions and Zod schemas so LLMs call the right capabilities.
+- Keep agent instructions concise but explicit about tool/workflow selection rules.
+- Extract business logic into custom hooks/utilities (`docs/mastra.md` + `.cursorrules` guidance).
+- Persist conversational memory with LibSQL and prune when necessary.
+- Avoid circular workflow/tool invocation—see `docs/development/ai-notes/fixes/workflow-loop-prevention.md`.
 
-**AI Agent Instructions Best Practices:**
+## Additional Resources
 
-1. **Clear Role Definition**: Start with who the agent is and its primary purpose
-2. **Tool/Workflow Selection Rules**: Explicitly guide when to use each capability
-3. **Language Patterns**: Define tone, formality, and response structure
-4. **Error Handling**: Specify how to handle edge cases
-5. **Context Awareness**: Guide how to use conversation history
+- Mastra Framework Reference: `docs/mastra.md`
+- Agent Patterns & Notes: `docs/development/ai-notes/concepts/agent-patterns.md`
+- Workflow Architecture: `docs/architecture/domain-structure.md`
+- Environment Setup: `docs/getting-started/environment-setup.md`
 
-### Step 4: Configure Mastra
-
-Register all components in the main configuration:
-
-```typescript
-// src/mastra/index.ts
-import { Mastra } from "@mastra/core/mastra";
-import { LibSQLStore } from "@mastra/libsql";
-import { weatherAgent } from "./agents/weather-agent";
-import { weatherWorkflow } from "./workflows/weather-workflow";
-
-export const mastra = new Mastra({
-  workflows: { weatherWorkflow },
-  agents: { weatherAgent },
-  storage: new LibSQLStore({
-    url: ":memory:", // Use "file:../mastra.db" for persistence
-  }),
-  logger: new PinoLogger({
-    level: "info",
-  }),
-});
-```
-
-## Advanced Patterns
-
-### Utility Functions
-
-Create shared utilities for common operations:
-
-```typescript
-// src/mastra/utils/geocoding.ts
-export async function geocodeLocation(location: string) {
-  // Shared logic for location resolution
-  // Handle nicknames, validate coordinates, etc.
-}
-```
-
-### Tool Composition
-
-Build complex tools from simpler ones:
-
-```typescript
-const composedTool = createTool({
-  // ...
-  execute: async ({ context, mastra }) => {
-    const weather = await weatherTool.execute({ context, mastra });
-    const forecast = await forecastTool.execute({ context, mastra });
-    // Combine results
-  },
-});
-```
-
-### Workflow Patterns
-
-**Human-in-the-Loop**:
-```typescript
-.then(reviewStep)
-.waitForEvent("approval")
-.then(finalizeStep)
-```
-
-**Retry with Backoff**:
-```typescript
-const stepWithRetry = createStep({
-  // ...
-  retryConfig: {
-    maxAttempts: 3,
-    backoffMs: [1000, 2000, 4000],
-  },
-});
-```
-
-## Testing and Development
-
-1. **Use `mastra dev`** for local development with hot reload
-2. **Test tools independently** before integrating into workflows
-3. **Monitor with structured logging** for debugging
-4. **Validate schemas** to catch errors early
-
-## Common Pitfalls and Solutions
-
-1. **Circular Dependencies**: Avoid agents calling themselves through workflows
-2. **Tool Overload**: Keep tool count reasonable (10-15 max per agent)
-3. **Vague Instructions**: Be specific about tool selection criteria
-4. **Memory Bloat**: Implement conversation pruning strategies
-
-## Next Steps
-
-- Explore the [complete Mastra documentation](docs/mastra.md)
-- Check example implementations in `src/mastra/`
-- Review the weather agent as a reference implementation
-- Experiment with different LLM models and providers
-
-## Quick Reference
-
-- **Agents**: [docs/mastra.md#agents](docs/mastra.md) - Lines 15-145
-- **Tools**: [docs/mastra.md#tools](docs/mastra.md) - Lines 111-118
-- **Workflows**: [docs/mastra.md#workflows](docs/mastra.md) - Lines 119-135
-- **Memory**: [docs/mastra.md#memory](docs/mastra.md) - Lines 72-77
-- **Examples**: [docs/mastra.md#examples](docs/mastra.md) - Lines 137-251
+Stay consistent with this handbook to keep agents predictable, testable, and easy to extend.
