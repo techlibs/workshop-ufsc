@@ -77,26 +77,51 @@ export class TMDBApiClient {
   private client: BaseApiClient;
   private cache: ApiCache;
   private genres: Map<number, string> = new Map();
+  private genresLoaded = false;
+  private genresLoading: Promise<void> | null = null;
 
   constructor() {
     this.client = new BaseApiClient(TMDB_CONFIG);
     this.cache = new ApiCache();
-    this.initializeGenres();
   }
 
-  private async initializeGenres(): Promise<void> {
-    try {
-      const movieGenres = await this.fetchGenres("movie");
-      const tvGenres = await this.fetchGenres("tv");
-
-      [...movieGenres, ...tvGenres].forEach((genre) => {
-        this.genres.set(genre.id, genre.name);
-      });
-    } catch (error) {
-      console.error("Failed to initialize genres:", error);
-      // Use fallback genres
-      this.setFallbackGenres();
+  /**
+   * Lazily load genres on first need. Ensures only one in-flight fetch and
+   * falls back gracefully if the remote API fails (e.g., missing API key).
+   */
+  private async ensureGenresLoaded(): Promise<void> {
+    if (this.genresLoaded) return;
+    if (this.genresLoading) {
+      // Another call already started loading
+      await this.genresLoading;
+      return;
     }
+
+    this.genresLoading = (async () => {
+      try {
+        const [movieGenres, tvGenres] = await Promise.all([
+          this.fetchGenres("movie").catch(() => []),
+          this.fetchGenres("tv").catch(() => []),
+        ]);
+        [...movieGenres, ...tvGenres].forEach((genre) => {
+          this.genres.set(genre.id, genre.name);
+        });
+
+        // If nothing was fetched, populate fallback
+        if (this.genres.size === 0) {
+          this.setFallbackGenres();
+        }
+        this.genresLoaded = true;
+      } catch (err) {
+        console.error("TMDB genres lazy load failed, using fallback:", err);
+        this.setFallbackGenres();
+        this.genresLoaded = true; // Prevent repeated attempts that would spam logs
+      } finally {
+        this.genresLoading = null;
+      }
+    })();
+
+    await this.genresLoading;
   }
 
   private setFallbackGenres(): void {
@@ -294,6 +319,12 @@ export class TMDBApiClient {
     type: "movie" | "series",
     providers: Provider[] = []
   ): Partial<Movie> {
+    // Fire-and-forget ensure genres; if not yet loaded, genres may be empty for this call
+    // but subsequent calls will have them. We don't await here to keep method synchronous
+    // signature; callers that need genres immediately can await ensureGenresLoaded explicitly.
+    if (!this.genresLoaded && !this.genresLoading) {
+      this.ensureGenresLoaded();
+    }
     const isMovie = type === "movie";
     const tmdbMovie = tmdbData as TMDBMovie;
     const tmdbShow = tmdbData as TMDBTVShow;
