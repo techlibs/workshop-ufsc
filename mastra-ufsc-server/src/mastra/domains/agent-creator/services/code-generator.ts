@@ -55,6 +55,10 @@ export class CodeGenerator {
       specificImports = `import { ApiService } from './services/api-service';`;
     } else if (templateId === 'telegram-agent') {
       specificImports = `import { getTelegramConfig, TelegramService } from './services/telegram-service';`;
+    } else if (templateId === 'email-agent') {
+      specificImports = `import { EmailService } from './services/email-service';`;
+    } else if (templateId === 'database-agent') {
+      specificImports = `import { DatabaseService } from './services/database-service';`;
     }
 
     return `// src/mastra/domains/${agentName}/agent.ts
@@ -269,6 +273,161 @@ export class ApiService {
 
     userLimit.count++;
     return true;
+  }
+}`;
+    }
+    
+    if (template.id === 'email-agent') {
+      return `// src/mastra/domains/${template.name.toLowerCase().replace(/\s+/g, '-')}/services/email-service.ts
+import nodemailer from 'nodemailer';
+
+interface EmailConfig {
+  host: string;
+  port: number;
+  secure: boolean;
+  auth: {
+    user: string;
+    pass: string;
+  };
+}
+
+export class EmailService {
+  private transporter: nodemailer.Transporter;
+
+  constructor(config: EmailConfig) {
+    this.transporter = nodemailer.createTransporter(config);
+  }
+
+  async sendEmail(options: {
+    to: string | string[];
+    subject: string;
+    text?: string;
+    html?: string;
+    attachments?: Array<{
+      filename: string;
+      content: Buffer | string;
+      contentType?: string;
+    }>;
+  }): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    try {
+      const result = await this.transporter.sendMail(options);
+      return {
+        success: true,
+        messageId: result.messageId
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  async verifyConnection(): Promise<boolean> {
+    try {
+      await this.transporter.verify();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}`;
+    }
+    
+    if (template.id === 'database-agent') {
+      return `// src/mastra/domains/${template.name.toLowerCase().replace(/\s+/g, '-')}/services/database-service.ts
+import { Pool, PoolClient } from 'pg';
+
+interface DatabaseConfig {
+  host: string;
+  port: number;
+  database: string;
+  user: string;
+  password: string;
+  ssl?: boolean;
+}
+
+export class DatabaseService {
+  private pool: Pool;
+
+  constructor(config: DatabaseConfig) {
+    this.pool = new Pool({
+      host: config.host,
+      port: config.port,
+      database: config.database,
+      user: config.user,
+      password: config.password,
+      ssl: config.ssl || false,
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
+    });
+  }
+
+  async executeQuery(query: string, params?: any[]): Promise<{
+    success: boolean;
+    data?: any[];
+    error?: string;
+    rowCount?: number;
+  }> {
+    let client: PoolClient | null = null;
+    
+    try {
+      client = await this.pool.connect();
+      const result = await client.query(query, params);
+      
+      return {
+        success: true,
+        data: result.rows,
+        rowCount: result.rowCount
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    } finally {
+      if (client) {
+        client.release();
+      }
+    }
+  }
+
+  async executeTransaction(queries: Array<{ query: string; params?: any[] }>): Promise<{
+    success: boolean;
+    results?: any[];
+    error?: string;
+  }> {
+    const client = await this.pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+      const results = [];
+      
+      for (const { query, params } of queries) {
+        const result = await client.query(query, params);
+        results.push(result.rows);
+      }
+      
+      await client.query('COMMIT');
+      
+      return {
+        success: true,
+        results
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    } finally {
+      client.release();
+    }
+  }
+
+  async close(): Promise<void> {
+    await this.pool.end();
   }
 }`;
     }

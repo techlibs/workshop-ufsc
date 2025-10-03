@@ -22,6 +22,99 @@ function getCurrentDir(): string {
   }
 }
 
+// Função para validar código gerado
+function validateGeneratedCode(code: string, fileName: string): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  
+  // Verificar imports básicos necessários
+  if (fileName.includes('agent.ts')) {
+    if (!code.includes('import { z } from "zod"')) {
+      errors.push('Missing Zod import (z)');
+    }
+    if (!code.includes('import { createTool }')) {
+      errors.push('Missing createTool import');
+    }
+    if (!code.includes('import { Agent }')) {
+      errors.push('Missing Agent import');
+    }
+  }
+  
+  // Verificar se há referências a classes não importadas
+  if (code.includes('new ApiService()') && !code.includes('import { ApiService }')) {
+    errors.push('ApiService used but not imported');
+  }
+  
+  if (code.includes('new TelegramService()') && !code.includes('import { TelegramService }')) {
+    errors.push('TelegramService used but not imported');
+  }
+  
+  if (code.includes('new EmailService()') && !code.includes('import { EmailService }')) {
+    errors.push('EmailService used but not imported');
+  }
+  
+  if (code.includes('new DatabaseService()') && !code.includes('import { DatabaseService }')) {
+    errors.push('DatabaseService used but not imported');
+  }
+  
+  // Verificar sintaxe básica
+  if (code.includes('z.object({') && !code.includes('import { z }')) {
+    errors.push('Zod schema used but z not imported');
+  }
+  
+  return {
+    valid: errors.length === 0,
+    errors
+  };
+}
+
+// Função para instalar dependências automaticamente
+async function installDependencies(dependencies: string[]): Promise<{ success: boolean; error?: string }> {
+  if (!dependencies || dependencies.length === 0) {
+    return { success: true };
+  }
+
+  try {
+    const { spawn } = await import('child_process');
+    const path = await import('path');
+    
+    return new Promise((resolve) => {
+      const child = spawn('pnpm', ['add', ...dependencies], {
+        cwd: process.cwd(),
+        stdio: 'pipe'
+      });
+
+      let errorOutput = '';
+      
+      child.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+
+      child.on('close', (code) => {
+        if (code === 0) {
+          resolve({ success: true });
+        } else {
+          resolve({ 
+            success: false, 
+            error: `Failed to install dependencies: ${errorOutput}` 
+          });
+        }
+      });
+
+      child.on('error', (error) => {
+        resolve({ 
+          success: false, 
+          error: `Failed to spawn pnpm: ${error.message}` 
+        });
+      });
+    });
+  } catch (error) {
+    return { 
+      success: false, 
+      error: `Failed to install dependencies: ${error instanceof Error ? error.message : 'Unknown error'}` 
+    };
+  }
+}
+
 // Função para registrar agente automaticamente no Mastra
 async function registerAgentInMastra(agentName: string, agentClassName: string): Promise<void> {
   const fs = await import('fs');
@@ -55,6 +148,15 @@ async function registerAgentInMastra(agentName: string, agentClassName: string):
   mastraIndexPath = foundPath;
   
   let mastraContent = fs.readFileSync(mastraIndexPath, 'utf8');
+  
+  // Validar se o arquivo tem a estrutura esperada
+  if (!mastraContent.includes('export const mastra = new Mastra')) {
+    throw new Error('Arquivo mastra/index.ts não tem a estrutura esperada (export const mastra = new Mastra)');
+  }
+  
+  if (!mastraContent.includes('agents: {')) {
+    throw new Error('Arquivo mastra/index.ts não tem a seção agents esperada');
+  }
   
   // Adicionar import do novo agente
   const importLine = `import { ${agentClassName}Agent } from "./domains/${agentName}";`;
@@ -351,6 +453,10 @@ const createAgentStructureTool = createTool({
       registered: z.boolean(),
       error: z.string().optional()
     }).optional(),
+    dependencyStatus: z.object({
+      success: z.boolean(),
+      error: z.string().optional()
+    }).optional(),
     instructions: z.string().optional(),
     error: z.string().optional()
   }),
@@ -446,8 +552,16 @@ const createAgentStructureTool = createTool({
       
       // Salvar arquivos
       const filesCreated = [];
+      const validationErrors: string[] = [];
+      
       for (const file of filesToCreate) {
         try {
+          // Validar código antes de salvar
+          const validation = validateGeneratedCode(file.content, file.path);
+          if (!validation.valid) {
+            validationErrors.push(...validation.errors.map(err => `${file.path}: ${err}`));
+          }
+          
           fs.writeFileSync(file.path, file.content, 'utf8');
           filesCreated.push({
             ...file,
@@ -459,6 +573,21 @@ const createAgentStructureTool = createTool({
             saved: false
           });
         }
+      }
+      
+      // Se há erros de validação, retornar erro
+      if (validationErrors.length > 0) {
+        return {
+          success: false,
+          error: `Validation errors found:\n${validationErrors.join('\n')}`,
+          filesCreated
+        };
+      }
+      
+      // Instalar dependências automaticamente
+      let dependencyStatus = { success: true };
+      if (template.dependencies && template.dependencies.length > 0) {
+        dependencyStatus = await installDependencies(template.dependencies);
       }
       
       // Salvar arquivos de configuração na raiz do projeto
@@ -491,7 +620,7 @@ const createAgentStructureTool = createTool({
       }
       
       // Registrar no Mastra se solicitado
-      let registrationStatus = { registered: false, error: undefined };
+      let registrationStatus: { registered: boolean; error?: string } = { registered: false };
       if (autoRegister) {
         try {
           await registerAgentInMastra(normalizedAgentName, agentClassName);
@@ -508,17 +637,19 @@ const createAgentStructureTool = createTool({
         success: true,
         filesCreated,
         registrationStatus,
+        dependencyStatus,
         instructions: `✅ Agente '${normalizedAgentName}' criado com sucesso!
         
 📁 Arquivos criados em: src/mastra/domains/${normalizedAgentName}/
 📁 Arquivos de configuração: env.${normalizedAgentName}.example, README.${normalizedAgentName}.md
 ${registrationStatus.registered ? '✅ Registrado automaticamente no Mastra' : '⚠️ Registro manual necessário'}
+${dependencyStatus.success ? '✅ Dependências instaladas automaticamente' : '⚠️ Instalação manual de dependências necessária'}
 
 🔧 Próximos passos:
-1. Instale dependências: pnpm add ${template.dependencies.join(' ')}
-2. Configure variáveis no .env usando env.${normalizedAgentName}.example
-3. Reinicie o servidor para carregar o novo agente
-4. Teste: mastra.getAgent("${agentClassName}Agent")`
+${!dependencyStatus.success ? `1. Instale dependências: pnpm add ${template.dependencies.join(' ')}` : ''}
+${!dependencyStatus.success ? '2. ' : '1. '}Configure variáveis no .env usando env.${normalizedAgentName}.example
+${!dependencyStatus.success ? '3. ' : '2. '}Reinicie o servidor para carregar o novo agente
+${!dependencyStatus.success ? '4. ' : '3. '}Teste: mastra.getAgent("${agentClassName}Agent")`
       };
       
     } catch (error) {
