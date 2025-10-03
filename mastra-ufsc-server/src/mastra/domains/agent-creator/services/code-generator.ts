@@ -1,0 +1,355 @@
+// src/mastra/domains/agent-creator/services/code-generator.ts
+import { AgentTemplate, AgentToolTemplate, EnvVarTemplate } from '../templates/agent-templates';
+
+export interface GeneratedAgent {
+  agentCode: string;
+  serviceCode?: string;
+  utilsCode?: string;
+  envExample: string;
+  packageJson: string;
+  readme: string;
+  testCode: string;
+}
+
+export class CodeGenerator {
+  static generateAgent(template: AgentTemplate, customizations?: {
+    agentName?: string;
+    description?: string;
+    instructions?: string;
+    additionalTools?: AgentToolTemplate[];
+    additionalEnvVars?: EnvVarTemplate[];
+  }): GeneratedAgent {
+    const agentName = customizations?.agentName || template.name.toLowerCase().replace(/\s+/g, '-');
+    const agentClassName = this.toPascalCase(agentName);
+    const description = customizations?.description || template.description;
+    const instructions = customizations?.instructions || template.instructions;
+    
+    const allTools = [...template.tools, ...(customizations?.additionalTools || [])];
+    const allEnvVars = [...template.envVars, ...(customizations?.additionalEnvVars || [])];
+
+    return {
+      agentCode: this.generateAgentCode(agentName, agentClassName, description, instructions, allTools),
+      serviceCode: this.generateServiceCode(template),
+      utilsCode: this.generateUtilsCode(template),
+      envExample: this.generateEnvExample(allEnvVars),
+      packageJson: this.generatePackageJson(template.dependencies),
+      readme: this.generateReadme(template, agentName, description),
+      testCode: this.generateTestCode(agentName, allTools)
+    };
+  }
+
+  private static generateAgentCode(
+    agentName: string,
+    agentClassName: string,
+    description: string,
+    instructions: string,
+    tools: AgentToolTemplate[]
+  ): string {
+    const toolsCode = tools.map(tool => this.generateToolCode(tool)).join('\n\n');
+    const toolsRegistration = tools.map(tool => `    ${tool.name}: ${tool.name}Tool`).join(',\n');
+
+    return `// src/mastra/domains/${agentName}/agent.ts
+import { Agent } from "@mastra/core/agent";
+import { openai } from "@ai-sdk/openai";
+import { Memory } from "@mastra/memory";
+import { LibSQLStore } from "@mastra/libsql";
+import { ModerationProcessor, PIIDetector } from "@mastra/core/processors";
+import { createTool } from "@mastra/core/tools";
+import { z } from "zod";
+
+${toolsCode}
+
+export const ${agentClassName}Agent = new Agent({
+  name: "${agentName}-agent",
+  description: "${description}",
+  instructions: \`${instructions}\`,
+
+  model: openai("gpt-4o-mini"),
+  
+  memory: new Memory({
+    storage: new LibSQLStore({
+      url: "file:./${agentName}-memory.db"
+    })
+  }),
+
+  tools: {
+${toolsRegistration}
+  },
+
+  inputProcessors: [
+    new ModerationProcessor({
+      model: openai("gpt-4o-mini"),
+      threshold: 0.7,
+      strategy: 'block',
+      categories: ['sexual', 'harassment', 'violence']
+    }),
+    new PIIDetector({
+      model: openai("gpt-4o-mini"),
+      threshold: 0.6,
+      strategy: 'redact',
+      detectionTypes: ['email', 'phone', 'name', 'address']
+    })
+  ],
+
+  outputProcessors: [
+    new ModerationProcessor({
+      model: openai("gpt-4o-mini"),
+      threshold: 0.7,
+      strategy: 'block',
+      categories: ['sexual', 'harassment', 'violence']
+    }),
+    new PIIDetector({
+      model: openai("gpt-4o-mini"),
+      threshold: 0.6,
+      strategy: 'redact',
+      detectionTypes: ['email', 'phone', 'name', 'address']
+    })
+  ]
+});`;
+  }
+
+  private static generateToolCode(tool: AgentToolTemplate): string {
+    return `// Tool para ${tool.description}
+const ${tool.name}Tool = createTool({
+  id: "${tool.id}",
+  description: "${tool.description}",
+  inputSchema: ${tool.inputSchema},
+  outputSchema: ${tool.outputSchema},
+  execute: ${tool.implementation}
+});`;
+  }
+
+  private static generateServiceCode(template: AgentTemplate): string {
+    if (template.id === 'telegram-agent') {
+      return `// src/mastra/domains/${template.name.toLowerCase().replace(/\s+/g, '-')}/services/telegram-service.ts
+import TelegramBot from 'node-telegram-bot-api';
+
+interface TelegramConfig {
+  botToken: string;
+  webhookUrl?: string;
+  rateLimit: {
+    maxRequests: number;
+    windowMs: number;
+  };
+}
+
+export class TelegramService {
+  private bot: TelegramBot;
+  private rateLimiter: Map<string, { count: number; resetTime: number }> = new Map();
+
+  constructor(private config: TelegramConfig) {
+    this.bot = new TelegramBot(config.botToken, { polling: false });
+  }
+
+  async sendMessage(chatId: string, message: string, options?: {
+    parseMode?: 'HTML' | 'Markdown';
+    disableWebPagePreview?: boolean;
+    disableNotification?: boolean;
+  }): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    try {
+      if (!this.checkRateLimit(chatId)) {
+        return { success: false, error: 'Rate limit exceeded' };
+      }
+
+      const result = await this.bot.sendMessage(chatId, message, {
+        parse_mode: options?.parseMode || 'HTML',
+        disable_web_page_preview: options?.disableWebPagePreview || false,
+        disable_notification: options?.disableNotification || false
+      });
+      
+      return { 
+        success: true, 
+        messageId: result.message_id.toString() 
+      };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      };
+    }
+  }
+
+  private checkRateLimit(chatId: string): boolean {
+    const now = Date.now();
+    const userLimit = this.rateLimiter.get(chatId);
+
+    if (!userLimit) {
+      this.rateLimiter.set(chatId, { count: 1, resetTime: now + this.config.rateLimit.windowMs });
+      return true;
+    }
+
+    if (now > userLimit.resetTime) {
+      this.rateLimiter.set(chatId, { count: 1, resetTime: now + this.config.rateLimit.windowMs });
+      return true;
+    }
+
+    if (userLimit.count >= this.config.rateLimit.maxRequests) {
+      return false;
+    }
+
+    userLimit.count++;
+    return true;
+  }
+}`;
+    }
+    return '';
+  }
+
+  private static generateUtilsCode(template: AgentTemplate): string {
+    if (template.id === 'telegram-agent') {
+      return `// src/mastra/domains/${template.name.toLowerCase().replace(/\s+/g, '-')}/utils/env-config.ts
+export interface TelegramEnvConfig {
+  botToken: string;
+  defaultChatId?: string;
+  webhookUrl?: string;
+  rateLimit: {
+    maxRequests: number;
+    windowMs: number;
+  };
+}
+
+export function getTelegramConfig(): TelegramEnvConfig {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  const defaultChatId = process.env.TELEGRAM_CHAT_ID;
+  const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL;
+  
+  if (!botToken) {
+    throw new Error(\`
+❌ Missing TELEGRAM_BOT_TOKEN in environment.
+   → Create a .env file with: TELEGRAM_BOT_TOKEN=your_bot_token_here
+   → Get your bot token from: @BotFather on Telegram
+    \`);
+  }
+
+  return {
+    botToken,
+    defaultChatId,
+    webhookUrl,
+    rateLimit: {
+      maxRequests: parseInt(process.env.TELEGRAM_RATE_LIMIT_MAX || '10'),
+      windowMs: parseInt(process.env.TELEGRAM_RATE_LIMIT_WINDOW || '60000')
+    }
+  };
+}`;
+    }
+    return '';
+  }
+
+  private static generateEnvExample(envVars: EnvVarTemplate[]): string {
+    const requiredVars = envVars.filter(v => v.required);
+    const optionalVars = envVars.filter(v => !v.required);
+
+    return `# Configuração para o Agente
+# Copie este arquivo para .env e configure suas chaves
+
+# ====================================
+# Variáveis Obrigatórias
+# ====================================
+${requiredVars.map(v => `# ${v.description}\n${v.name}=${v.example}`).join('\n\n')}
+
+# ====================================
+# Variáveis Opcionais
+# ====================================
+${optionalVars.map(v => `# ${v.description}\n# ${v.name}=${v.example}`).join('\n\n')}
+
+# ====================================
+# OpenAI Configuration
+# ====================================
+OPENAI_API_KEY=your_openai_api_key_here`;
+  }
+
+  private static generatePackageJson(dependencies: string[]): string {
+    const deps = dependencies.map(dep => `    "${dep}": "latest"`).join(',\n');
+    
+    return `{
+  "name": "mastra-agent-dependencies",
+  "version": "1.0.0",
+  "description": "Dependências para agentes Mastra",
+  "dependencies": {
+${deps}
+  }
+}`;
+  }
+
+  private static generateReadme(template: AgentTemplate, agentName: string, description: string): string {
+    return `# ${template.name}
+
+${description}
+
+## Funcionalidades
+
+${template.features.map(feature => `- ${feature}`).join('\n')}
+
+## Instalação
+
+1. Instale as dependências:
+\`\`\`bash
+pnpm add ${template.dependencies.join(' ')}
+\`\`\`
+
+2. Configure as variáveis de ambiente:
+\`\`\`bash
+cp env.example .env
+# Edite o .env com suas configurações
+\`\`\`
+
+3. Registre o agente no Mastra:
+\`\`\`typescript
+import { ${agentName}Agent } from './domains/${agentName}';
+
+export const mastra = new Mastra({
+  agents: { ${agentName}Agent }
+});
+\`\`\`
+
+## Uso
+
+\`\`\`typescript
+const agent = mastra.getAgent("${agentName}Agent");
+
+// Exemplo de uso
+${template.exampleUsage}
+\`\`\`
+
+## Configuração
+
+### Variáveis de Ambiente
+
+${template.envVars.map(v => `- **${v.name}**: ${v.description} ${v.required ? '(obrigatório)' : '(opcional)'}`).join('\n')}
+
+## Testes
+
+Execute os testes:
+\`\`\`bash
+npx tsx tests/${agentName}.test.ts
+\`\`\``;
+  }
+
+  private static generateTestCode(agentName: string, tools: AgentToolTemplate[]): string {
+    return `// tests/${agentName}.test.ts
+import { ${agentName}Agent } from "../src/mastra/domains/${agentName}";
+
+describe('${agentName} Agent Tests', () => {
+  it('should create agent successfully', () => {
+    expect(${agentName}Agent).toBeDefined();
+    expect(${agentName}Agent.name).toBe("${agentName}-agent");
+  });
+
+  it('should have correct tools', async () => {
+    const tools = await ${agentName}Agent.getTools();
+    const toolNames = Object.keys(tools);
+    
+    expect(toolNames).toContain('${tools[0]?.name || 'exampleTool'}');
+  });
+
+  it('should generate response', async () => {
+    const response = await ${agentName}Agent.generate("Test message");
+    expect(response.text).toBeDefined();
+  });
+});`;
+  }
+
+  private static toPascalCase(str: string): string {
+    return str.replace(/(?:^|[-_])(\w)/g, (_, c) => c.toUpperCase());
+  }
+}

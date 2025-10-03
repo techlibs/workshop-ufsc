@@ -9,6 +9,9 @@ import { inventoryAgent } from "./domains/inventory";
 import { movieAgent } from "./domains/movie";
 import { studyAgent } from "./domains/study";
 import { weatherAgent, weatherWorkflow } from "./domains/weather";
+import { agentCreatorAgent } from "./domains/agent-creator";
+import { MotivationalMessageSenderAgent } from "./domains/motivational-message-sender";
+import { TestTelegramAgentAgent } from "./domains/test-telegram-agent";
 
 export const mastra = new Mastra({
   workflows: { weatherWorkflow },
@@ -19,9 +22,11 @@ export const mastra = new Mastra({
     movieAgent,
     beachAgent,
     studyAgent,
+    agentCreatorAgent,
+    MotivationalMessageSenderAgent,
+    TestTelegramAgentAgent,
   },
   storage: new LibSQLStore({
-    // stores telemetry, evals, ... into memory storage, if it needs to persist, change to file:../mastra.db
     url: ":memory:",
   }),
   logger: new PinoLogger({
