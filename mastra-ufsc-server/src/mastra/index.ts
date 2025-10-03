@@ -15,8 +15,6 @@ import {
   contextRetrieverAgent,
   interviewerAgent,
 } from "./domains/meta-agent/requirements-collector";
-import { agentCreatorAgent } from "./domains/agent-creator";
-import { WeatherForecastFortalezaAgent } from "./domains/weather-forecast-fortaleza/agent";
 
 export const mastra = new Mastra({
   workflows: { weatherWorkflow, metaAgentRequirementsCollectorWorkflow },
@@ -31,10 +29,9 @@ export const mastra = new Mastra({
     requirementsJudgeAgent,
     contextRetrieverAgent,
     interviewerAgent,
-    agentCreatorAgent,
-    weatherForecastFortalezaAgent: WeatherForecastFortalezaAgent,
   },
   storage: new LibSQLStore({
+    // stores telemetry, evals, ... into memory storage, if it needs to persist, change to file:../mastra.db
     url: ":memory:",
   }),
   logger: new PinoLogger({

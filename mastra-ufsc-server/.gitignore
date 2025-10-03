@@ -8,11 +8,3 @@ dist
 *.db-*
 .DS_Store
 **/.DS_Store
-
-# Test files (development only)
-test-*.ts
-test-*.js
-debug-*.ts
-debug-*.js
-temp-*.ts
-temp-*.js

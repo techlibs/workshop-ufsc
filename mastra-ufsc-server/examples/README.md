@@ -233,3 +233,39 @@ const stream = await agent.stream("Plan weekend in Paris");
 - [WEATHER_INTEGRATION.md](../WEATHER_INTEGRATION.md) - Technical details
 - [INTEGRATION_DIAGRAM.md](../INTEGRATION_DIAGRAM.md) - Architecture
 - [Mastra Agents Docs](https://mastra.ai/docs/agents/overview)
+
+---
+
+# Meta-Agent Web Search + RAG Examples
+
+Two new scripts demonstrate the Requirements Collector RAG pipeline:
+
+| Script | Purpose |
+|--------|---------|
+| `examples/meta-agent/web-search/ingest-and-retrieve.ts` | Direct use of RAG service: ingest + retrieve context chunks. |
+| `examples/meta-agent/web-search/workflow-run.ts` | Executes the requirements collector workflow with ingestion integrated. |
+
+## Quick Run
+```bash
+pnpm tsx examples/meta-agent/web-search/ingest-and-retrieve.ts "Design a workflow that summarizes daily dev standups"
+pnpm tsx examples/meta-agent/web-search/workflow-run.ts "Create a workflow that processes GitHub issues and summarizes weekly"
+```
+
+## Environment Notes
+- Works without API keys (search may fail gracefully; embeddings fallback to deterministic vectors).
+- Set `META_AGENT_SEARCH_PROVIDER` and provider keys for real ingestion.
+
+## Expected Output (Ingest + Retrieve)
+```
+[Meta-Agent RAG] Ingesting query: Design a workflow...
+Ingestion summary:
+- https://example.com/... :: chunks=0 (skipped: BRAVE_API_KEY missing)
+
+[Meta-Agent RAG] Retrieving contextual chunks...
+> Chunk abc123 (score=0.742)
+Lorem ipsum excerpt...
+```
+
+## Roadmap Hooks
+- Will evolve to include suspend/resume interview loop examples once workflow events land.
+- Future examples: multi-provider comparison, citation formatting, and MCP docs hybrid retrieval.

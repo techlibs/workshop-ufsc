@@ -53,10 +53,32 @@ export const FinalRequirementsOutputSchema = z.object({
   contexts: z.object({
     web: z.array(z.object({ id: z.string(), url: z.string(), title: z.string(), snippet: z.string().optional() })).default([]),
     mastraDocs: z.array(z.object({ path: z.string(), summary: z.string() })).default([]),
-    ragSelected: z.array(z.object({ id: z.string(), relevance: z.number(), excerpt: z.string() })).default([]),
+    ragSelected: z.array(z.object({
+      id: z.string(),
+      url: z.string().optional(),
+      title: z.string().optional(),
+      relevance: z.number(),
+      excerpt: z.string(),
+      citation: z.object({ url: z.string().optional(), provider: z.string().optional() }).optional(),
+    })).default([]),
   }),
 });
 export type FinalRequirementsOutput = z.infer<typeof FinalRequirementsOutputSchema>;
+
+// RAG retrieval chunk (normalized) used internally when drafting questions
+export const RagContextChunkSchema = z.object({
+  id: z.string(),
+  url: z.string().optional(),
+  title: z.string().optional(),
+  content: z.string(),
+  score: z.number(),
+});
+export type RagContextChunk = z.infer<typeof RagContextChunkSchema>;
+
+export interface Citation {
+  id: string; url?: string; title?: string; provider?: string; score?: number;
+}
+
 
 // Helper for initial requirement template list (can be expanded later or be dynamic)
 export const defaultRequirementTemplates: RequirementItem[] = [
