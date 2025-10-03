@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "dev": "mastra dev",
     "build": "mastra build",
@@ -22,6 +23,7 @@
     "@mastra/core": "^0.18.0",
     "@mastra/libsql": "^0.14.3",
     "@mastra/loggers": "^0.10.13",
+    "@mastra/mcp": "^0.13.3",
     "@mastra/memory": "^0.15.3",
     "axios": "^1.12.2",
     "dotenv": "^17.2.3",
@@ -32,6 +34,7 @@
     "@types/node": "^24.6.0",
     "mastra": "^0.13.2",
     "tsx": "^4.20.6",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
   }
 }

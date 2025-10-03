@@ -9,11 +9,17 @@ import { inventoryAgent } from "./domains/inventory";
 import { movieAgent } from "./domains/movie";
 import { studyAgent } from "./domains/study";
 import { weatherAgent, weatherWorkflow } from "./domains/weather";
+import {
+  metaAgentRequirementsCollectorWorkflow,
+  requirementsJudgeAgent,
+  contextRetrieverAgent,
+  interviewerAgent,
+} from "./domains/meta-agent/requirements-collector";
 import { agentCreatorAgent } from "./domains/agent-creator";
 import { WeatherForecastFortalezaAgent } from "./domains/weather-forecast-fortaleza/agent";
 
 export const mastra = new Mastra({
-  workflows: { weatherWorkflow },
+  workflows: { weatherWorkflow, metaAgentRequirementsCollectorWorkflow },
   agents: {
     weatherAgent,
     inventoryAgent,
@@ -21,6 +27,10 @@ export const mastra = new Mastra({
     movieAgent,
     beachAgent,
     studyAgent,
+    // Meta-agent system components (may not all be directly user-facing)
+    requirementsJudgeAgent,
+    contextRetrieverAgent,
+    interviewerAgent,
     agentCreatorAgent,
     weatherForecastFortalezaAgent: WeatherForecastFortalezaAgent,
   },
