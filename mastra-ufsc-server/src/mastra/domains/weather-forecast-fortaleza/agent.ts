@@ -5,6 +5,7 @@ import { Memory } from "@mastra/memory";
 import { LibSQLStore } from "@mastra/libsql";
 import { ModerationProcessor, PIIDetector } from "@mastra/core/processors";
 import { createTool } from "@mastra/core/tools";
+import { z } from "zod";
 import { ApiService } from './services/api-service';
 
 // Tool para Faz chamada para API externa
