@@ -10,6 +10,7 @@ import { movieAgent } from "./domains/movie";
 import { studyAgent } from "./domains/study";
 import { weatherAgent, weatherWorkflow } from "./domains/weather";
 import { agentCreatorAgent } from "./domains/agent-creator";
+import { WeatherForecastFortalezaAgent } from "./domains/weather-forecast-fortaleza";
 
 export const mastra = new Mastra({
   workflows: { weatherWorkflow },
@@ -21,6 +22,7 @@ export const mastra = new Mastra({
     beachAgent,
     studyAgent,
     agentCreatorAgent,
+    weatherForecastFortalezaAgent: WeatherForecastFortalezaAgent,
   },
   storage: new LibSQLStore({
     url: ":memory:",
