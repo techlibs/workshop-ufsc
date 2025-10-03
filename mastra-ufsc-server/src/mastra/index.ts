@@ -10,7 +10,7 @@ import { movieAgent } from "./domains/movie";
 import { studyAgent } from "./domains/study";
 import { weatherAgent, weatherWorkflow } from "./domains/weather";
 import { agentCreatorAgent } from "./domains/agent-creator";
-import { WeatherForecastFortalezaAgent } from "./domains/weather-forecast-fortaleza";
+import { WeatherForecastFortalezaAgent } from "./domains/weather-forecast-fortaleza/agent";
 
 export const mastra = new Mastra({
   workflows: { weatherWorkflow },
