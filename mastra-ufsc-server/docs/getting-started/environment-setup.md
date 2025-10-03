@@ -1,6 +1,8 @@
 # 🔧 Environment Setup Instructions
 
-## Quick Setup (3 steps)
+## Quick Setup
+
+This guide covers API keys used in this project. For other APIs, see [API Keys Guide](./api-keys-guide.md).
 
 ### 1. Create your .env file
 ```bash
@@ -8,25 +10,68 @@
 cp env.example .env
 ```
 
-### 2. Get your TMDB API Key
+### 2. Configure Required API Keys
 
-1. Visit https://www.themoviedb.org/
-2. Create a free account (if you don't have one)
-3. Go to **Settings → API**
-4. Click **"Create"** or **"Request an API Key"**
-5. Choose **"Developer"** option
-6. Fill in the form (use any website URL for testing)
-7. Copy your **API Key (v3 auth)**
+#### OpenAI (Required)
+**Purpose:** AI agent models (GPT-4)
 
-### 3. Update your .env file
-
-Open `.env` and replace the placeholder:
-
+1. Visit https://platform.openai.com/signup
+2. Create account and verify email
+3. Go to **API Keys** section
+4. Click **"Create new secret key"**
+5. Copy the key (starts with `sk-`)
+6. Add to `.env`:
 ```env
-TMDB_API_KEY=your_actual_api_key_here
+OPENAI_API_KEY=sk-xxx
 ```
 
-## Verify Setup
+#### GitHub (for PR agents)
+**Purpose:** Repository access, PRs, webhooks
+
+1. Visit https://github.com/settings/tokens
+2. Click **"Generate new token (classic)"**
+3. Select scopes: ✅ `repo` (full repository access)
+4. Click **"Generate token"**
+5. Copy token (starts with `ghp_`)
+6. Add to `.env`:
+```env
+GITHUB_TOKEN=ghp_xxx
+GITHUB_OWNER=your_username_or_org
+GITHUB_REPO=your_repository_name
+GITHUB_WEBHOOK_SECRET=your_random_secret_string
+```
+
+#### Telegram (for notifications)
+**Purpose:** Telegram bot notifications
+
+1. Open Telegram and search for `@BotFather`
+2. Send `/newbot` command
+3. Choose bot name and username (must end with `bot`)
+4. Copy HTTP API token
+5. Get Chat ID:
+   - Send message to bot
+   - Visit `https://api.telegram.org/bot<TOKEN>/getUpdates`
+   - Copy `chat.id` from response
+6. Add to `.env`:
+```env
+TELEGRAM_BOT_TOKEN=123456:ABCdef
+TELEGRAM_CHAT_ID=123456789
+```
+
+#### TMDB (Optional - for movie agent)
+**Purpose:** Movie/TV show data
+
+1. Visit https://www.themoviedb.org/
+2. Create free account
+3. Go to **Settings → API**
+4. Request API key (choose Developer)
+5. Copy **API Key (v3 auth)**
+6. Add to `.env`:
+```env
+TMDB_API_KEY=xxx
+```
+
+### 3. Verify Setup
 
 Run the server to test:
 ```bash

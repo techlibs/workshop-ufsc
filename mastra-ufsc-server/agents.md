@@ -45,7 +45,7 @@ Each domain follows the same internal shape so changes remain predictable:
 ## Shared Modules
 
 - `shared/api/` – API client wrappers, caching, and retry policies.
-- `shared/config/env.ts` – Runtime configuration loader (also see `env.example`).
+- `shared/config/env.ts` – Runtime configuration loader (also see `env.example`).  DO NOT use process.env.XXX directly in domain code ALWAYS create getter function in shared/config/env.ts
 - `types/` – Cross-domain TypeScript contracts.
 - `tests/` – E2E and integration suites organised by domain (`tests/e2e/<domain>`).
 - `examples/` – Minimal scripts demonstrating agent usage.
@@ -55,7 +55,7 @@ Reuse helpers from `shared/` or create new ones when two or more domains need th
 ## Implementation Workflow
 
 1. **Plan & Document** – Capture the intent in `docs/development/ai-notes/` (follow the 4-phase workflow outlined in `docs/development/plans/AI_WORKFLOW_SYSTEM.md`).
-2. **Add Tools First** – Define tool schemas and behaviour inside the domain’s `tools/` folder and export them through `index.ts`.
+2. **Add Tools First** – Define tool schemas and behaviour inside the domain's `tools/` folder and export them through `index.ts`.
 3. **Wire the Agent** – Configure instructions, model, tools, workflows, memory, and optional processors in `agent.ts`.
 4. **Design the Workflow** – When orchestration is required, create a `workflow.ts` inside the domain:
    - Use `createStep` for reusable units with clear input/output schemas (Zod) and retry/backoff policies when needed.

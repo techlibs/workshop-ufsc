@@ -43,6 +43,13 @@ When receiving any implementation request, you MUST:
       - Establish performance benchmarks
       - Create validation checkpoints
 
+   e) **API Keys & External Dependencies**
+      - List all required external services/APIs you MUST search in  ../../getting-started/api-keys-guide.md
+      - Reference `docs/getting-started/api-keys-guide.md` for setup instructions
+      - Document where to obtain each API key
+      - Specify required scopes/permissions
+      - Update `shared/config/env.ts` with getter functions
+
 OUTPUT FORMAT: Structured JSON plan with nested hierarchies
 ```
 
@@ -148,22 +155,35 @@ CREATE IMPLEMENTATION AGENT via @agents.md configured for:
    ✓ Monitoring setup complete
 
 2. **EXECUTION PROTOCOL**
-   
-   a) **Component Generation**
+
+   a) **Environment & API Keys Setup**
+      - For each external API/service required:
+        1. Consult `docs/getting-started/api-keys-guide.md` for setup instructions
+        2. Add getter function to `shared/config/env.ts` with validation
+        3. Update `docs/getting-started/environment-setup.md` with:
+           - Copy exact setup steps from `api-keys-guide.md` for that API
+           - Include where to get the key
+           - Show example `.env` configuration
+           - Add troubleshooting tips
+        4. Add variable to `.env` file
+      - Follow this pattern for EVERY external dependency
+      - Never use `process.env.XXX` directly - always use getter functions
+
+   b) **Component Generation**
       - Follow modular architecture
       - Implement error boundaries
       - Add comprehensive logging
       - Include inline documentation
       - Apply defensive programming
    
-   b) **Progressive Implementation**
+   c) **Progressive Implementation**
       - Start with core functionality
       - Layer additional features
       - Implement in testable chunks
       - Validate at each milestone
       - Maintain backwards compatibility
    
-   c) **Quality Assurance Integration**
+   d) **Quality Assurance Integration**
       - Unit test generation
       - Integration test scenarios
       - Performance benchmarking
@@ -242,17 +262,69 @@ When ready to implement in Mastra:
 
 ## USAGE EXAMPLE
 
+### Example 1: GitHub-Telegram PR Notifier Agent
+
+```
+User Request: "Build a GitHub-Telegram PR notification agent"
+
+LLM Response Flow:
+
+1. "Creating Planning Agent via @agents.md..."
+
+2. "Analyzing requirements... Identified external dependencies:
+   - GitHub API (for PR data)
+   - Telegram Bot API (for notifications)
+
+   Consulting docs/getting-started/api-keys-guide.md..."
+
+3. "Plan generated with API dependencies:
+   {
+     "apiDependencies": [
+       {
+         "service": "GitHub",
+         "keys": ["GITHUB_TOKEN", "GITHUB_OWNER", "GITHUB_REPO"],
+         "setupGuide": "docs/getting-started/api-keys-guide.md#github"
+       },
+       {
+         "service": "Telegram",
+         "keys": ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"],
+         "setupGuide": "docs/getting-started/api-keys-guide.md#telegram"
+       }
+     ]
+   }"
+
+4. "Creating Review Agent... Score: 75/100. Missing env variable documentation."
+
+5. "Applying refinements:
+   - Adding getter functions to shared/config/env.ts
+   - Updating docs/getting-started/environment-setup.md with:
+     * GitHub setup instructions (copied from api-keys-guide.md)
+     * Telegram setup instructions (copied from api-keys-guide.md)
+   Enhanced score: 92/100"
+
+6. "Creating Implementation Agent..."
+
+7. "Implementing:
+   ✓ Added getTelegramBotToken() to shared/config/env.ts
+   ✓ Added getGitHubToken() to shared/config/env.ts
+   ✓ Updated environment-setup.md with Telegram section
+   ✓ Updated environment-setup.md with GitHub section
+   ✓ Created telegram-service.ts using getter functions
+   ✓ Created github-service.ts using getter functions"
+```
+
+### Example 2: Simple Data Pipeline (No External APIs)
+
 ```
 User Request: "Build a data processing pipeline"
 
 LLM Response Flow:
 1. "Creating specialized Planning Agent via @agents.md..."
-2. "Generating comprehensive implementation plan..."
-3. "Initiating Review Agent via @agents.md for analysis..."
-4. "Review complete. Score: 75/100. Creating Refinement Agent..."
-5. "Applying optimizations... Enhanced score: 92/100"
-6. "Creating Implementation Agent via @agents.md..."
-7. "Executing systematic implementation..."
+2. "No external APIs required - skipping env setup steps"
+3. "Generating implementation plan..."
+4. "Review complete. Score: 88/100"
+5. "Creating Implementation Agent..."
+6. "Executing systematic implementation..."
 ```
 
 ---
@@ -271,6 +343,6 @@ Track these KPIs for workflow optimization:
 ---
 
 ## VERSION: 1.0.0
-## LAST UPDATED: 2024
+## LAST UPDATED: 2025
 ## STATUS: Ready for LLM Integration
 
