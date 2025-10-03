@@ -10,7 +10,6 @@ import { movieAgent } from "./domains/movie";
 import { studyAgent } from "./domains/study";
 import { weatherAgent, weatherWorkflow } from "./domains/weather";
 import { agentCreatorAgent } from "./domains/agent-creator";
-import { MotivationalMessageSenderAgent } from "./domains/motivational-message-sender";
 import { TestTelegramAgentAgent } from "./domains/test-telegram-agent";
 
 export const mastra = new Mastra({
@@ -23,7 +22,6 @@ export const mastra = new Mastra({
     beachAgent,
     studyAgent,
     agentCreatorAgent,
-    MotivationalMessageSenderAgent,
     TestTelegramAgentAgent,
   },
   storage: new LibSQLStore({
